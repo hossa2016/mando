@@ -36,26 +36,39 @@ object Keys {
     }
 }
 
-data class TvApp(val name: String, val link: String)
+data class TvApp(val name: String, val link: String, val color: Long = 0) {
+    /** Color de marca (o uno estable derivado del nombre). */
+    fun tint(): Long = if (color != 0L) color else {
+        val palette = longArrayOf(0xFF9A7CFF, 0xFF4FC3F7, 0xFFFFB74D, 0xFF81C784, 0xFFF06292, 0xFFE0C38A)
+        palette[(name.hashCode() and 0x7FFFFFFF) % palette.size]
+    }
+    val glyph: String get() = when (name) {
+        "YouTube", "YouTube Kids" -> "▶"
+        "YouTube Music" -> "♪"
+        "Disney+" -> "D+"
+        "Spotify" -> "≋"
+        else -> name.trim().take(1).uppercase()
+    }
+}
 
 object Prefs {
     /** Apps conocidas con su enlace de apertura en Google TV. */
     val CATALOG = listOf(
-        TvApp("YouTube", "https://www.youtube.com"),
-        TvApp("Netflix", "https://www.netflix.com/title"),
-        TvApp("Disney+", "https://www.disneyplus.com"),
-        TvApp("Prime Video", "https://app.primevideo.com"),
-        TvApp("Max", "https://play.max.com"),
-        TvApp("Spotify", "spotify://"),
-        TvApp("YouTube Music", "https://music.youtube.com"),
-        TvApp("YouTube Kids", "https://www.youtubekids.com"),
-        TvApp("Paramount+", "https://www.paramountplus.com"),
-        TvApp("Apple TV", "https://tv.apple.com"),
-        TvApp("Crunchyroll", "https://www.crunchyroll.com"),
-        TvApp("ViX", "https://vix.com"),
-        TvApp("Pluto TV", "https://pluto.tv"),
-        TvApp("Twitch", "https://www.twitch.tv"),
-        TvApp("Plex", "plex://")
+        TvApp("YouTube", "https://www.youtube.com", 0xFFFF4E45),
+        TvApp("Netflix", "https://www.netflix.com/title", 0xFFE50914),
+        TvApp("Disney+", "https://www.disneyplus.com", 0xFF5B8CFF),
+        TvApp("Prime Video", "https://app.primevideo.com", 0xFF3FB5E8),
+        TvApp("Max", "https://play.max.com", 0xFF7A5CFF),
+        TvApp("Spotify", "spotify://", 0xFF1ED760),
+        TvApp("YouTube Music", "https://music.youtube.com", 0xFFFF4E45),
+        TvApp("YouTube Kids", "https://www.youtubekids.com", 0xFFFF7043),
+        TvApp("Paramount+", "https://www.paramountplus.com", 0xFF2F6BFF),
+        TvApp("Apple TV", "https://tv.apple.com", 0xFFD0D0D0),
+        TvApp("Crunchyroll", "https://www.crunchyroll.com", 0xFFF47521),
+        TvApp("ViX", "https://vix.com", 0xFFFF6A00),
+        TvApp("Pluto TV", "https://pluto.tv", 0xFFFFE84D),
+        TvApp("Twitch", "https://www.twitch.tv", 0xFF9146FF),
+        TvApp("Plex", "plex://", 0xFFE5A00D)
     )
     const val SLOTS = 6
     private val DEFAULTS = listOf("YouTube", "Netflix", "Disney+", "Prime Video", "Max", "Spotify")
