@@ -8,7 +8,11 @@ import android.os.Handler
 import android.os.Looper
 
 /** Busca Chromecast / Google TV en la red WiFi (mDNS "_androidtvremote2._tcp"). */
-class Discovery(ctx: Context, private val onFound: (name: String, host: String) -> Unit) {
+class Discovery(
+    ctx: Context,
+    private val type: String = "_androidtvremote2._tcp",
+    private val onFound: (name: String, host: String, port: Int) -> Unit
+) {
 
     private val appCtx = ctx.applicationContext
     private val nsd = appCtx.getSystemService(Context.NSD_SERVICE) as NsdManager
@@ -35,7 +39,7 @@ class Discovery(ctx: Context, private val onFound: (name: String, host: String) 
             }
         }
         listener = l
-        try { nsd.discoverServices("_androidtvremote2._tcp", NsdManager.PROTOCOL_DNS_SD, l) } catch (e: Exception) { }
+        try { nsd.discoverServices(type, NsdManager.PROTOCOL_DNS_SD, l) } catch (e: Exception) { }
     }
 
     @Suppress("DEPRECATION")
@@ -52,7 +56,7 @@ class Discovery(ctx: Context, private val onFound: (name: String, host: String) 
                     val host = info.host?.hostAddress
                     main.post {
                         resolving = false
-                        if (host != null) onFound(info.serviceName ?: "Chromecast", host)
+                        if (host != null) onFound(info.serviceName ?: "Chromecast", host, info.port)
                         next()
                     }
                 }

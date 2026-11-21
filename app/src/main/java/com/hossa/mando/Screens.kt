@@ -166,7 +166,7 @@ fun SetupScreen(onPaired: () -> Unit) {
     var ip by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) {
-        val d = Discovery(ctx) { name, host -> if (devices.none { it.second == host }) devices.add(name to host) }
+        val d = Discovery(ctx) { name, host, _ -> if (devices.none { it.second == host }) devices.add(name to host) }
         d.start()
         onDispose { d.stop() }
     }
@@ -537,6 +537,12 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
     var mode by remember { mutableIntStateOf(0) } // 0 lista, 1 paquete, 2 enlace, 3 ADB
     var adbApps by remember { mutableStateOf<List<String>?>(null) }
     var adbError by remember { mutableStateOf<String?>(null) }
+    var needsPair by remember { mutableStateOf(false) }
+    var pairCode by remember { mutableStateOf("") }
+    var pairPort by remember { mutableStateOf("") }
+    var connPort by remember { mutableStateOf("") }
+    var pairBusy by remember { mutableStateOf(false) }
+    var pairMsg by remember { mutableStateOf<String?>(null) }
     var adbLoad by remember { mutableIntStateOf(0) }
     var testMsg by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
@@ -606,11 +612,62 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
                 }
                 3 -> {
                     LaunchedEffect(adbLoad) {
-                        adbApps = null; adbError = null
+                        adbApps = null; adbError = null; needsPair = false
                         try { adbApps = withContext(Dispatchers.IO) { Adb.apps(ctx) } }
+                        catch (e: Adb.NeedsPairing) { needsPair = true; pairMsg = null }
                         catch (e: Exception) { adbError = e.message ?: "Error de ADB" }
                     }
-                    if (value.isEmpty()) {
+                    // Buscar los puertos solos mientras se muestra el panel de vinculación
+                    LaunchedEffect(needsPair) {
+                        while (needsPair) {
+                            if (pairPort.isEmpty()) withContext(Dispatchers.IO) { Adb.discoverPort(ctx, "_adb-tls-pairing._tcp", 4000) }?.let { pairPort = it.toString() }
+                            if (connPort.isEmpty()) withContext(Dispatchers.IO) { Adb.discoverPort(ctx, "_adb-tls-connect._tcp", 3000) }?.let { connPort = it.toString() }
+                            delay(1500)
+                        }
+                    }
+                    if (needsPair) {
+                        Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                            Text("Vincular depuración inalámbrica", style = M.t(16.sp, M.gold, true))
+                            Spacer(Modifier.height(6.dp))
+                            Text("En el Chromecast: Opciones para desarrolladores → Depuración inalámbrica (actívala) → Vincular dispositivo con código de vinculación. Escribe aquí el código que aparece.",
+                                style = M.t(13.sp, M.muted).copy(lineHeight = 18.sp))
+                            Spacer(Modifier.height(12.dp))
+                            MField(pairCode, { pairCode = it.filter { c -> c.isDigit() }.take(6) }, "Código de 6 dígitos", big = true, keyboard = KeyboardType.Number)
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Puerto de vinculación", style = M.t(11.sp, M.dim))
+                                    MField(pairPort, { pairPort = it.filter { c -> c.isDigit() }.take(5) }, "Buscando…", keyboard = KeyboardType.Number)
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text("Puerto de conexión", style = M.t(11.sp, M.dim))
+                                    MField(connPort, { connPort = it.filter { c -> c.isDigit() }.take(5) }, "Buscando…", keyboard = KeyboardType.Number)
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text("Los puertos salen solos. Si no, cópialos de la TV: el de vinculación está junto al código; el de conexión en \"Dirección IP y puerto\".",
+                                style = M.t(11.sp, M.dim).copy(lineHeight = 15.sp))
+                            pairMsg?.let { Spacer(Modifier.height(8.dp)); Text(it, style = M.t(13.sp, M.amber).copy(lineHeight = 18.sp)) }
+                            Spacer(Modifier.height(12.dp))
+                            GoldButton(if (pairBusy) "Vinculando…" else "Vincular", Modifier.fillMaxWidth()) {
+                                val pp = pairPort.toIntOrNull()
+                                if (pairBusy) return@GoldButton
+                                if (pairCode.length != 6 || pp == null) { pairMsg = "Falta el código o el puerto de vinculación."; return@GoldButton }
+                                pairBusy = true; pairMsg = null
+                                Thread {
+                                    val err = try {
+                                        Adb.pair(ctx, pp, pairCode)
+                                        connPort.toIntOrNull()?.let { Adb.setPort(ctx, it) }
+                                        null
+                                    } catch (e: Exception) { e.message ?: "Error" }
+                                    mainHandler.post {
+                                        pairBusy = false
+                                        if (err == null) { needsPair = false; pairCode = ""; adbLoad++ } else pairMsg = err
+                                    }
+                                }.start()
+                            }
+                        }
+                    } else if (value.isEmpty()) {
                         when {
                             adbError != null -> {
                                 Text(adbError ?: "", style = M.t(14.sp, M.muted).copy(lineHeight = 20.sp))
