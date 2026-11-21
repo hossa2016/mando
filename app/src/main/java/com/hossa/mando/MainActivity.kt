@@ -376,17 +376,16 @@ class MainActivity : AppCompatActivity() {
         col.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(12); setMargins(dpi(6), dpi(12), dpi(6), 0) })
 
         // Apps
-        col.addView(label("TUS APPS", 11f, C.MUTED, true).apply { letterSpacing = 0.12f; setPadding(dpi(2), dpi(26), 0, dpi(10)) })
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.BOTTOM
+            setPadding(dpi(2), dpi(26), dpi(2), dpi(10))
+            addView(label("TUS APPS", 11f, C.MUTED, true).apply { letterSpacing = 0.12f }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(label("Mantén presionada para cambiar", 11f, C.DIM))
+        })
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; clipChildren = false }
-        Prefs.APPS.chunked(2).forEachIndexed { r, pair ->
-            val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false }
-            pair.forEachIndexed { i, app ->
-                line.addView(softButton(text = app.name, oval = false).apply {
-                    setOnClickListener { haptic(); TvRemote.openApp(app.link) }
-                }, LinearLayout.LayoutParams(0, dpi(48), 1f).apply { if (i > 0) marginStart = dpi(10) })
-            }
-            grid.addView(line, LinearLayout.LayoutParams(-1, -2).apply { if (r > 0) topMargin = dpi(10) })
-        }
+        appsGrid = grid
+        fillApps()
         col.addView(grid)
 
         setContentView(ScrollView(this).apply {
@@ -399,6 +398,61 @@ class MainActivity : AppCompatActivity() {
         TvRemote.listener = { s -> renderState(s) }
         renderState(TvRemote.state)
         TvRemote.start(this, host)
+    }
+
+    private var appsGrid: LinearLayout? = null
+
+    private fun fillApps() {
+        val grid = appsGrid ?: return
+        grid.removeAllViews()
+        (0 until Prefs.SLOTS).chunked(2).forEachIndexed { r, pair ->
+            val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false }
+            pair.forEachIndexed { i, slot ->
+                val app = Prefs.app(this, slot)
+                val b = if (app != null) softButton(text = app.name, oval = false) else
+                    softButton(text = "+  Agregar", oval = false).apply { (getChildAt(0) as? TextView)?.setTextColor(C.DIM) }
+                b.setOnClickListener {
+                    it.haptic()
+                    if (app != null) TvRemote.openApp(app.link) else chooseApp(slot)
+                }
+                b.setOnLongClickListener {
+                    it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    chooseApp(slot); true
+                }
+                line.addView(b, LinearLayout.LayoutParams(0, dpi(48), 1f).apply { if (i > 0) marginStart = dpi(10) })
+            }
+            grid.addView(line, LinearLayout.LayoutParams(-1, -2).apply { if (r > 0) topMargin = dpi(10) })
+        }
+    }
+
+    private fun chooseApp(slot: Int) {
+        val names = Prefs.CATALOG.map { it.name } + listOf("Otra (escribir enlace)…", "Dejar vacío")
+        AlertDialog.Builder(this)
+            .setTitle("Espacio ${slot + 1}")
+            .setItems(names.toTypedArray()) { _, which ->
+                when {
+                    which < Prefs.CATALOG.size -> { Prefs.setApp(this, slot, Prefs.CATALOG[which]); fillApps() }
+                    which == Prefs.CATALOG.size -> customApp(slot)
+                    else -> { Prefs.setApp(this, slot, null); fillApps() }
+                }
+            }
+            .show()
+    }
+
+    private fun customApp(slot: Int) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(20), dpi(8), dpi(20), 0) }
+        val n = EditText(this).apply { hint = "Nombre, por ejemplo Win Play" }
+        val l = EditText(this).apply { hint = "Enlace, por ejemplo https://…" ; inputType = InputType.TYPE_TEXT_VARIATION_URI }
+        box.addView(n); box.addView(l)
+        AlertDialog.Builder(this)
+            .setTitle("App personalizada")
+            .setView(box)
+            .setPositiveButton("Guardar") { _, _ ->
+                val name = n.text.toString().trim(); val link = l.text.toString().trim()
+                if (name.isNotEmpty() && link.isNotEmpty()) { Prefs.setApp(this, slot, TvApp(name, link)); fillApps() }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun renderState(s: TvRemote.State) {
