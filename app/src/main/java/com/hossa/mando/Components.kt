@@ -214,7 +214,7 @@ fun Segmented(left: String, right: String, rightOn: Boolean, onChange: (Boolean)
 // Anillo direccional
 // ------------------------------------------------------------------
 @Composable
-fun Dpad(size: Dp, onKey: (Int) -> Unit) {
+fun Dpad(diameter: Dp, onKey: (Int) -> Unit) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     var zone by remember { mutableIntStateOf(-1) }      // sector iluminado
@@ -226,14 +226,16 @@ fun Dpad(size: Dp, onKey: (Int) -> Unit) {
     fun keyFor(z: Int) = when (z) { 0 -> Keys.UP; 1 -> Keys.RIGHT; 2 -> Keys.DOWN; 3 -> Keys.LEFT; else -> Keys.OK }
 
     Box(
-        Modifier.size(size)
+        Modifier.size(diameter)
             .shadow(24.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(CircleShape)
             .pointerInput(Unit) {
+                val boxW = this.size.width.toFloat()
+                val boxH = this.size.height.toFloat()
                 detectTapGestures(onPress = { p ->
-                    val c = Offset(this.size.width / 2f, this.size.height / 2f)
+                    val c = Offset(boxW / 2f, boxH / 2f)
                     val d = p - c
-                    val r = this.size.width / 2f
+                    val r = boxW / 2f
                     val dist = hypot(d.x, d.y)
                     val z = if (dist > r) -1 else if (dist < r * 0.42f) 4 else {
                         val ang = Math.toDegrees(atan2(d.y.toDouble(), d.x.toDouble()))
