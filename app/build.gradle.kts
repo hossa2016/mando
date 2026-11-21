@@ -33,7 +33,14 @@ android {
     lint { abortOnError = false; checkReleaseBuilds = false }
     buildFeatures { compose = true }
     packaging {
-        resources { excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/BCKEY.DSA", "META-INF/BCKEY.SF") }
+        resources {
+            excludes += setOf(
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/BCKEY.DSA", "META-INF/BCKEY.SF",
+                "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module",
+                "META-INF/INDEX.LIST", "META-INF/io.netty.versions.properties"
+            )
+            pickFirsts += setOf("META-INF/versions/**")
+        }
     }
 }
 
