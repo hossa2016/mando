@@ -49,19 +49,42 @@ object Adb {
         return found
     }
 
-    /** Vincula con el código de 6 dígitos. Bloquea. */
-    fun pair(ctx: Context, pairPort: Int, code: String) {
-        setup(ctx)
+    /** Vincula con el código de 6 dígitos. Bloquea. log recibe cada paso para mostrarlo en pantalla. */
+    fun pair(ctx: Context, pairPort: Int, code: String, log: (String) -> Unit = {}) {
+        log("1. Preparando la llave de Mando…")
+        try { setup(ctx); KadbCert.ensureReady() } catch (e: Throwable) {
+            throw AdbError("Falló la llave: ${describe(e)}")
+        }
         val host = Prefs.host(ctx) ?: throw AdbError("No hay Chromecast vinculado.")
+        log("2. Probando conexión a $host:$pairPort…")
+        try {
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, pairPort), 4000) }
+            log("   Conexión abierta ✓")
+        } catch (e: Throwable) {
+            throw AdbError("No se pudo abrir $host:$pairPort (${describe(e)}). ¿Sigue abierta en la TV la ventana del código? El puerto cambia cada vez que se abre.")
+        }
+        log("3. Vinculando con el código ${code.trim()}…")
         val task = pool.submit(Callable { runBlocking { Kadb.pair(host, pairPort, code.trim(), "Mando") } })
         try {
-            task.get(30, TimeUnit.SECONDS)
+            task.get(25, TimeUnit.SECONDS)
+            log("   Vinculado ✓")
         } catch (e: TimeoutException) {
-            task.cancel(true); throw AdbError("El Chromecast no respondió a la vinculación.")
-        } catch (e: Exception) {
-            val c = e.cause ?: e
-            throw AdbError("No se pudo vincular: ${c.message ?: c.javaClass.simpleName}. Revisa el código y el puerto.")
+            task.cancel(true); throw AdbError("El Chromecast no respondió en 25 s durante la vinculación.")
+        } catch (e: Throwable) {
+            throw AdbError("Error al vincular: ${describe(e.cause ?: e)}")
         }
+    }
+
+    /** Texto del error con su cadena de causas. */
+    fun describe(e: Throwable): String {
+        val parts = ArrayList<String>()
+        var t: Throwable? = e
+        var n = 0
+        while (t != null && n < 4) {
+            parts += "${t.javaClass.simpleName}: ${t.message ?: "-"}"
+            t = t.cause; n++
+        }
+        return parts.joinToString(" ← ")
     }
 
     fun setPort(ctx: Context, port: Int) = setConnectPort(ctx, port)

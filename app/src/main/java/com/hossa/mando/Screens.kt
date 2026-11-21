@@ -543,6 +543,7 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
     var connPort by remember { mutableStateOf("") }
     var pairBusy by remember { mutableStateOf(false) }
     var pairMsg by remember { mutableStateOf<String?>(null) }
+    var pairLog by remember { mutableStateOf("") }
     var adbLoad by remember { mutableIntStateOf(0) }
     var testMsg by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
@@ -647,19 +648,30 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
                             Spacer(Modifier.height(6.dp))
                             Text("Los puertos salen solos. Si no, cópialos de la TV: el de vinculación está junto al código; el de conexión en \"Dirección IP y puerto\".",
                                 style = M.t(11.sp, M.dim).copy(lineHeight = 15.sp))
-                            pairMsg?.let { Spacer(Modifier.height(8.dp)); Text(it, style = M.t(13.sp, M.amber).copy(lineHeight = 18.sp)) }
+                            if (pairLog.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(pairLog, style = M.t(12.sp, M.icon).copy(lineHeight = 17.sp))
+                            }
+                            pairMsg?.let { msg ->
+                                Spacer(Modifier.height(8.dp)); Text(msg, style = M.t(13.sp, M.amber).copy(lineHeight = 18.sp))
+                                Spacer(Modifier.height(6.dp))
+                                Text("Copiar detalles", Modifier.clickable {
+                                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    cm.setPrimaryClip(android.content.ClipData.newPlainText("Mando", pairLog + "\n" + msg))
+                                }.padding(vertical = 6.dp), style = M.t(13.sp, M.gold, true))
+                            }
                             Spacer(Modifier.height(12.dp))
                             GoldButton(if (pairBusy) "Vinculando…" else "Vincular", Modifier.fillMaxWidth()) {
                                 val pp = pairPort.toIntOrNull()
                                 if (pairBusy) return@GoldButton
                                 if (pairCode.length != 6 || pp == null) { pairMsg = "Falta el código o el puerto de vinculación."; return@GoldButton }
-                                pairBusy = true; pairMsg = null
+                                pairBusy = true; pairMsg = null; pairLog = ""
                                 Thread {
                                     val err = try {
-                                        Adb.pair(ctx, pp, pairCode)
+                                        Adb.pair(ctx, pp, pairCode) { line -> mainHandler.post { pairLog = if (pairLog.isEmpty()) line else pairLog + "\n" + line } }
                                         connPort.toIntOrNull()?.let { Adb.setPort(ctx, it) }
                                         null
-                                    } catch (e: Exception) { e.message ?: "Error" }
+                                    } catch (e: Throwable) { e.message ?: Adb.describe(e) }
                                     mainHandler.post {
                                         pairBusy = false
                                         if (err == null) { needsPair = false; pairCode = ""; adbLoad++ } else pairMsg = err
