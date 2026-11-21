@@ -426,16 +426,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun chooseApp(slot: Int) {
-        val names = Prefs.CATALOG.map { it.name } + listOf("Otra (escribir enlace)…", "Dejar vacío")
+        val names = Prefs.CATALOG.map { it.name } + listOf("Otra app (por nombre de paquete)…", "Otra (escribir enlace)…", "Dejar vacío")
         AlertDialog.Builder(this)
             .setTitle("Espacio ${slot + 1}")
             .setItems(names.toTypedArray()) { _, which ->
                 when {
                     which < Prefs.CATALOG.size -> { Prefs.setApp(this, slot, Prefs.CATALOG[which]); fillApps() }
-                    which == Prefs.CATALOG.size -> customApp(slot)
+                    which == Prefs.CATALOG.size -> packageApp(slot)
+                    which == Prefs.CATALOG.size + 1 -> customApp(slot)
                     else -> { Prefs.setApp(this, slot, null); fillApps() }
                 }
             }
+            .show()
+    }
+
+    /** App instalada en la TV sin enlace público: se abre por su nombre de paquete. */
+    private fun packageApp(slot: Int) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(20), dpi(8), dpi(20), 0) }
+        val n = EditText(this).apply { hint = "Nombre, por ejemplo Xuper TV" }
+        val pkg = EditText(this).apply { hint = "Paquete, por ejemplo com.ejemplo.tv"; inputType = InputType.TYPE_TEXT_VARIATION_URI }
+        val help = label("Toca Probar 1 y mira la TV. Si no abre, toca Probar 2. Guarda el que funcione.", 13f, C.MUTED).apply {
+            setPadding(0, dpi(10), 0, dpi(6))
+        }
+        var chosen = 1
+        fun link(m: Int, p: String) = if (m == 1) "market://launch?id=$p"
+            else "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=$p;end"
+        val tests = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf(1, 2).forEach { m ->
+            tests.addView(softButton(text = "Probar $m", oval = false).apply {
+                setOnClickListener {
+                    haptic()
+                    val p = pkg.text.toString().trim()
+                    if (p.isNotEmpty()) { chosen = m; TvRemote.openApp(link(m, p)) }
+                }
+            }, LinearLayout.LayoutParams(0, dpi(44), 1f).apply { if (m == 2) marginStart = dpi(10) })
+        }
+        box.addView(n); box.addView(pkg); box.addView(help); box.addView(tests)
+        AlertDialog.Builder(this)
+            .setTitle("App por paquete")
+            .setView(box)
+            .setPositiveButton("Guardar") { _, _ ->
+                val name = n.text.toString().trim(); val p = pkg.text.toString().trim()
+                if (name.isNotEmpty() && p.isNotEmpty()) { Prefs.setApp(this, slot, TvApp(name, link(chosen, p))); fillApps() }
+            }
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
