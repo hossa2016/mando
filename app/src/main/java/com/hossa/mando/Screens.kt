@@ -355,7 +355,14 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
                         IconButtonR(R.drawable.ic_power, 44.dp, 19.dp, gold = true, onLongPress = { powerMenu = true }) {
                             // Apaga/prende la TV por infrarrojo (si está configurado) y el Chromecast por WiFi
                             if (Prefs.irProfile(ctx) > 0) Ir.power(ctx)
-                            TvRemote.key(Prefs.powerKey(ctx))
+                            if (Prefs.tvOff(ctx)) {
+                                // Prender: despertar (solo enciende, nunca apaga)
+                                TvRemote.key(Keys.WAKEUP)
+                                Prefs.setTvOff(ctx, false)
+                            } else {
+                                TvRemote.key(Prefs.powerKey(ctx))
+                                Prefs.setTvOff(ctx, true)
+                            }
                         }
                         DropdownMenu(expanded = powerMenu, onDismissRequest = { powerMenu = false }) {
                             if (Ir.available(ctx)) {
@@ -374,6 +381,10 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
                                 )
                             }
                             Text("Chromecast por WiFi", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = M.t(12.sp, M.muted))
+                            DropdownMenuItem(
+                                text = { Text("Despertar Chromecast", style = M.t(15.sp, M.text)) },
+                                onClick = { TvRemote.key(Keys.WAKEUP); Prefs.setTvOff(ctx, false); powerMenu = false }
+                            )
                             listOf(Keys.POWER to "Modo 1 · Encendido", Keys.SLEEP to "Modo 2 · Suspender", Keys.TV_POWER to "Modo 3 · Encendido de TV")
                                 .forEach { (k, label) ->
                                     DropdownMenuItem(

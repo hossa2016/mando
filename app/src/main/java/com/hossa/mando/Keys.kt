@@ -23,6 +23,7 @@ object Keys {
     const val SETTINGS = 176
     const val TV_POWER = 177
     const val SLEEP = 223
+    const val WAKEUP = 224
 
     fun forChar(c: Char): Int? = when (c) {
         in 'a'..'z' -> 29 + (c - 'a')
@@ -108,6 +109,10 @@ object Prefs {
     /** 0 = sin infrarrojo, 1..n = perfil de Ir.PROFILES */
     fun irProfile(ctx: Context) = p(ctx).getInt("ir", 0)
     fun setIrProfile(ctx: Context, v: Int) = p(ctx).edit().putInt("ir", v).apply()
+
+    /** true si el último toque del botón de encendido fue para apagar. */
+    fun tvOff(ctx: Context) = p(ctx).getBoolean("tvOff", false)
+    fun setTvOff(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("tvOff", v).apply()
 
     fun touchMode(ctx: Context) = p(ctx).getBoolean("touch", false)
     fun setTouchMode(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("touch", v).apply()

@@ -101,12 +101,12 @@ object TvRemote {
                 }
                 m.has(2) -> { // remote_set_active
                     send(out, Pb().msg(2, Pb().int(1, 622)))
-                    if (!ready) { ready = true; set(State.CONNECTED) }
+                    if (!ready) { ready = true; set(State.CONNECTED); flushPending() }
                 }
                 m.has(8) -> { // ping
                     val v = m.msg(8)?.int(1) ?: 0
                     send(out, Pb().msg(9, Pb().int(1, v)))
-                    if (!ready) { ready = true; set(State.CONNECTED) }
+                    if (!ready) { ready = true; set(State.CONNECTED); flushPending() }
                 }
             }
         }
@@ -115,11 +115,25 @@ object TvRemote {
     @Synchronized
     private fun send(out: java.io.OutputStream, p: Pb) = Pb.writeFramed(out, p.toByteArray())
 
+    /** Órdenes tocadas mientras se reconecta: se envían apenas haya conexión (si no pasan de 12 s). */
+    private val pending = ArrayList<Pair<Long, Pb>>()
+
     private fun post(p: Pb) {
-        val s = socket ?: return
+        val s = socket
+        if (s == null || !ready) {
+            synchronized(pending) { if (pending.size < 20) pending.add(System.currentTimeMillis() to p) }
+            if (!wanted) appCtx?.let { c -> host?.let { h -> start(c, h) } }
+            return
+        }
         sender.execute {
             try { send(s.outputStream, p) } catch (e: Exception) { }
         }
+    }
+
+    private fun flushPending() {
+        val now = System.currentTimeMillis()
+        val list = synchronized(pending) { val l = pending.filter { now - it.first < 12_000 }; pending.clear(); l }
+        for ((_, p) in list) post(p)
     }
 
     // ---------- Comandos ----------
