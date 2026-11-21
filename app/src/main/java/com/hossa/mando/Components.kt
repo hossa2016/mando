@@ -159,8 +159,9 @@ fun PressBox(
 }
 
 @Composable
-fun IconButtonR(icon: Int, size: Dp, iconSize: Dp = 22.dp, gold: Boolean = false, tint: Color = M.text, onClick: () -> Unit) {
-    PressBox(Modifier.size(size), gold = gold, onClick = onClick) {
+fun IconButtonR(icon: Int, size: Dp, iconSize: Dp = 22.dp, gold: Boolean = false, tint: Color = M.text,
+                onLongPress: (() -> Unit)? = null, onClick: () -> Unit) {
+    PressBox(Modifier.size(size), gold = gold, onLongPress = onLongPress, onClick = onClick) {
         Icon(painterResource(icon), null, Modifier.size(iconSize), tint = if (gold) M.gold else tint)
     }
 }

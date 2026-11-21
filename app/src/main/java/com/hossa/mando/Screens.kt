@@ -297,6 +297,7 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
     val view = LocalView.current
     var touch by remember { mutableStateOf(Prefs.touchMode(ctx)) }
     var menu by remember { mutableStateOf(false) }
+    var powerMenu by remember { mutableStateOf(false) }
     var repair by remember { mutableStateOf(false) }
     var keyboard by remember { mutableStateOf(false) }
     var pickSlot by remember { mutableIntStateOf(-1) }
@@ -350,7 +351,22 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
                     }
                     IconButtonR(R.drawable.ic_settings, 44.dp, 19.dp, tint = M.icon) { TvRemote.key(Keys.SETTINGS) }
                     Spacer(Modifier.width(10.dp))
-                    IconButtonR(R.drawable.ic_power, 44.dp, 19.dp, gold = true) { TvRemote.key(Keys.POWER) }
+                    Box {
+                        IconButtonR(R.drawable.ic_power, 44.dp, 19.dp, gold = true, onLongPress = { powerMenu = true }) {
+                            TvRemote.key(Prefs.powerKey(ctx))
+                        }
+                        DropdownMenu(expanded = powerMenu, onDismissRequest = { powerMenu = false }) {
+                            Text("Elige cómo apagar (toca para probar)", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                style = M.t(12.sp, M.muted))
+                            listOf(Keys.POWER to "Modo 1 · Encendido", Keys.SLEEP to "Modo 2 · Suspender", Keys.TV_POWER to "Modo 3 · Encendido de TV")
+                                .forEach { (k, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label + if (Prefs.powerKey(ctx) == k) "  ✓" else "", style = M.t(15.sp, if (Prefs.powerKey(ctx) == k) M.gold else M.text)) },
+                                        onClick = { Prefs.setPowerKey(ctx, k); TvRemote.key(k); powerMenu = false }
+                                    )
+                                }
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(20.dp))

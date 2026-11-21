@@ -21,6 +21,8 @@ object Keys {
     const val PREV = 88
     const val MUTE = 164
     const val SETTINGS = 176
+    const val TV_POWER = 177
+    const val SLEEP = 223
 
     fun forChar(c: Char): Int? = when (c) {
         in 'a'..'z' -> 29 + (c - 'a')
@@ -98,6 +100,10 @@ object Prefs {
     fun save(ctx: Context, host: String, name: String) =
         p(ctx).edit().putString("host", host).putString("name", name).apply()
     fun forget(ctx: Context) = p(ctx).edit().remove("host").remove("name").apply()
+
+    /** Código de apagado elegido (26 POWER, 223 SLEEP, 177 TV_POWER). */
+    fun powerKey(ctx: Context) = p(ctx).getInt("powerKey", Keys.POWER)
+    fun setPowerKey(ctx: Context, k: Int) = p(ctx).edit().putInt("powerKey", k).apply()
 
     fun touchMode(ctx: Context) = p(ctx).getBoolean("touch", false)
     fun setTouchMode(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("touch", v).apply()
