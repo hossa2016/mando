@@ -146,6 +146,17 @@ object TvRemote {
 
     fun openApp(link: String) = post(Pb().msg(90, Pb().str(1, link)))
 
+    /** Abre una app: enlace normal, o "adb:paquete" por depuración ADB. */
+    fun open(ctx: Context, link: String, onError: (String) -> Unit = {}) {
+        if (link.startsWith("adb:")) {
+            val c = ctx.applicationContext
+            Thread {
+                try { Adb.launch(c, link.removePrefix("adb:")) }
+                catch (e: Exception) { main.post { onError(e.message ?: "No se pudo abrir la app") } }
+            }.start()
+        } else openApp(link)
+    }
+
     /** Escribe texto tecla por tecla (sirve en cualquier buscador de Google TV). */
     fun type(text: String) {
         val clean = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)

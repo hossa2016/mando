@@ -303,6 +303,7 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
     var pickSlot by remember { mutableIntStateOf(-1) }
     var appsVersion by remember { mutableIntStateOf(0) }
     var hud by remember { mutableStateOf(false) }
+    var toast by remember { mutableStateOf<String?>(null) }
     var hudTick by remember { mutableIntStateOf(0) }
     var level by remember { mutableIntStateOf(10) }
     val host = Prefs.host(ctx) ?: ""
@@ -441,7 +442,7 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
                                 pair.forEach { slot ->
                                     val app = Prefs.app(ctx, slot)
                                     AppTile(app, Modifier.weight(1f),
-                                        onClick = { if (app != null) TvRemote.openApp(app.link) else pickSlot = slot },
+                                        onClick = { if (app != null) TvRemote.open(ctx, app.link) { msg -> toast = msg } else pickSlot = slot },
                                         onLongPress = { pickSlot = slot })
                                 }
                             }
@@ -476,6 +477,17 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
         }
     }
 
+    toast?.let { msg ->
+        Dialog(onDismissRequest = { toast = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Card(Modifier.fillMaxWidth(0.9f)) {
+                Text("No se pudo abrir la app", style = M.t(19.sp, M.text, true))
+                Spacer(Modifier.height(8.dp))
+                Text(msg, style = M.t(14.sp, M.muted).copy(lineHeight = 20.sp))
+                Spacer(Modifier.height(16.dp))
+                GoldButton("Entendido", Modifier.fillMaxWidth()) { toast = null }
+            }
+        }
+    }
     if (repair) PairingDialog(host, name, onPaired = { repair = false; TvRemote.start(ctx, host) }, onDismiss = { repair = false })
     if (keyboard) KeyboardDialog { keyboard = false }
     if (pickSlot >= 0) AppPickerDialog(pickSlot, onDone = { pickSlot = -1; appsVersion++ })
@@ -522,7 +534,11 @@ fun KeyboardDialog(onClose: () -> Unit) {
 @Composable
 fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
     val ctx = LocalContext.current
-    var mode by remember { mutableIntStateOf(0) } // 0 lista, 1 paquete, 2 enlace
+    var mode by remember { mutableIntStateOf(0) } // 0 lista, 1 paquete, 2 enlace, 3 ADB
+    var adbApps by remember { mutableStateOf<List<String>?>(null) }
+    var adbError by remember { mutableStateOf<String?>(null) }
+    var adbLoad by remember { mutableIntStateOf(0) }
+    var testMsg by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var value by remember { mutableStateOf("") }
     var method by remember { mutableIntStateOf(1) }
@@ -535,14 +551,15 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             when (mode) {
                 0 -> {
-                    val items = Prefs.CATALOG.map<TvApp, TvApp?> { it } + listOf(null, null, null)
+                    val items = listOf<TvApp?>(null) + Prefs.CATALOG.map<TvApp, TvApp?> { it } + listOf(null, null, null)
                     LazyColumn(Modifier.heightIn(max = 420.dp)) {
                         itemsIndexed(items) { i, app ->
-                            val extra = i - Prefs.CATALOG.size
+                            val extra = if (i == 0) -1 else i - 1 - Prefs.CATALOG.size
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
                                     when {
                                         app != null -> { Prefs.setApp(ctx, slot, app); onDone() }
+                                        extra == -1 -> { mode = 3; adbLoad++ }
                                         extra == 0 -> mode = 1
                                         extra == 1 -> mode = 2
                                         else -> { Prefs.setApp(ctx, slot, null); onDone() }
@@ -559,8 +576,8 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
                                     Spacer(Modifier.width(12.dp))
                                     Text(app.name, style = M.t(16.sp))
                                 } else {
-                                    Text(when (extra) { 0 -> "Otra app (por nombre de paquete)…"; 1 -> "Otra (escribir enlace)…"; else -> "Dejar vacío" },
-                                        style = M.t(15.sp, if (extra == 2) M.muted else M.gold))
+                                    Text(when (extra) { -1 -> "★  Apps instaladas en el Chromecast (ADB)"; 0 -> "Otra app (por nombre de paquete)…"; 1 -> "Otra (escribir enlace)…"; else -> "Dejar vacío" },
+                                        style = M.t(15.sp, if (extra == 2) M.muted else M.gold, extra == -1))
                                 }
                             }
                         }
@@ -587,6 +604,53 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
                         if (name.isNotBlank() && value.isNotBlank()) { Prefs.setApp(ctx, slot, TvApp(name.trim(), pkgLink(method, value))); onDone() }
                     }
                 }
+                3 -> {
+                    LaunchedEffect(adbLoad) {
+                        adbApps = null; adbError = null
+                        try { adbApps = withContext(Dispatchers.IO) { Adb.apps(ctx) } }
+                        catch (e: Exception) { adbError = e.message ?: "Error de ADB" }
+                    }
+                    if (value.isEmpty()) {
+                        when {
+                            adbError != null -> {
+                                Text(adbError ?: "", style = M.t(14.sp, M.muted).copy(lineHeight = 20.sp))
+                                Spacer(Modifier.height(14.dp))
+                                GoldButton("Reintentar", Modifier.fillMaxWidth()) { adbLoad++ }
+                            }
+                            adbApps == null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(18.dp), color = M.gold, strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Leyendo apps del Chromecast… Si la TV pregunta por la depuración, acepta.",
+                                    style = M.t(14.sp, M.muted).copy(lineHeight = 20.sp))
+                            }
+                            else -> LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                                itemsIndexed(adbApps ?: emptyList()) { _, pkg ->
+                                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                        .clickable { value = pkg; name = Adb.prettyName(pkg) }
+                                        .padding(horizontal = 8.dp, vertical = 9.dp)) {
+                                        Text(Adb.prettyName(pkg), style = M.t(16.sp))
+                                        Text(pkg, style = M.t(12.sp, M.dim))
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text(value, style = M.t(13.sp, M.dim))
+                        Spacer(Modifier.height(10.dp))
+                        MField(name, { name = it }, "Nombre para el botón")
+                        testMsg?.let { Spacer(Modifier.height(8.dp)); Text(it, style = M.t(13.sp, M.amber).copy(lineHeight = 18.sp)) }
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            GoldButton("Probar", Modifier.weight(1f), gold = false) {
+                                testMsg = null
+                                TvRemote.open(ctx, "adb:$value") { testMsg = it }
+                            }
+                            GoldButton("Guardar", Modifier.weight(1f)) {
+                                if (name.isNotBlank()) { Prefs.setApp(ctx, slot, TvApp(name.trim(), "adb:$value")); onDone() }
+                            }
+                        }
+                    }
+                }
                 else -> {
                     MField(name, { name = it }, "Nombre de la app")
                     Spacer(Modifier.height(10.dp))
@@ -601,7 +665,9 @@ fun AppPickerDialog(slot: Int, onDone: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text(if (mode == 0) "Cerrar" else "Volver", Modifier.fillMaxWidth().clickable { if (mode == 0) onDone() else mode = 0 }.padding(8.dp),
+            Text(if (mode == 0) "Cerrar" else "Volver", Modifier.fillMaxWidth().clickable {
+                    if (mode == 0) onDone() else if (mode == 3 && value.isNotEmpty()) { value = ""; name = "" } else { mode = 0; value = ""; name = "" }
+                }.padding(8.dp),
                 style = M.t(15.sp, M.muted).copy(textAlign = TextAlign.Center))
         }
     }

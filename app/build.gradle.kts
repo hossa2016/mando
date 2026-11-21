@@ -11,8 +11,8 @@ android {
         applicationId = "com.hossa.mando"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.3"
+        versionCode = 8
+        versionName = "2.4"
     }
 
     signingConfigs {
@@ -41,6 +41,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+    implementation("dev.mobile:dadb:1.2.10")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
