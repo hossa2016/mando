@@ -353,11 +353,27 @@ fun RemoteScreen(state: TvRemote.State, onChangeDevice: () -> Unit) {
                     Spacer(Modifier.width(10.dp))
                     Box {
                         IconButtonR(R.drawable.ic_power, 44.dp, 19.dp, gold = true, onLongPress = { powerMenu = true }) {
+                            // Apaga/prende la TV por infrarrojo (si está configurado) y el Chromecast por WiFi
+                            if (Prefs.irProfile(ctx) > 0) Ir.power(ctx)
                             TvRemote.key(Prefs.powerKey(ctx))
                         }
                         DropdownMenu(expanded = powerMenu, onDismissRequest = { powerMenu = false }) {
-                            Text("Elige cómo apagar (toca para probar)", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                style = M.t(12.sp, M.muted))
+                            if (Ir.available(ctx)) {
+                                Text("TV por infrarrojo · apunta el celular a la TV", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    style = M.t(12.sp, M.gold))
+                                Ir.PROFILES.forEachIndexed { i, prof ->
+                                    val on = Prefs.irProfile(ctx) == i + 1
+                                    DropdownMenuItem(
+                                        text = { Text("Probar código ${prof.name}" + if (on) "  ✓" else "", style = M.t(15.sp, if (on) M.gold else M.text)) },
+                                        onClick = { Prefs.setIrProfile(ctx, i + 1); Ir.power(ctx, prof); powerMenu = false }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("No usar infrarrojo" + if (Prefs.irProfile(ctx) == 0) "  ✓" else "", style = M.t(15.sp, M.muted)) },
+                                    onClick = { Prefs.setIrProfile(ctx, 0); powerMenu = false }
+                                )
+                            }
+                            Text("Chromecast por WiFi", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = M.t(12.sp, M.muted))
                             listOf(Keys.POWER to "Modo 1 · Encendido", Keys.SLEEP to "Modo 2 · Suspender", Keys.TV_POWER to "Modo 3 · Encendido de TV")
                                 .forEach { (k, label) ->
                                     DropdownMenuItem(

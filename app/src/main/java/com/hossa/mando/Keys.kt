@@ -105,6 +105,10 @@ object Prefs {
     fun powerKey(ctx: Context) = p(ctx).getInt("powerKey", Keys.POWER)
     fun setPowerKey(ctx: Context, k: Int) = p(ctx).edit().putInt("powerKey", k).apply()
 
+    /** 0 = sin infrarrojo, 1..n = perfil de Ir.PROFILES */
+    fun irProfile(ctx: Context) = p(ctx).getInt("ir", 0)
+    fun setIrProfile(ctx: Context, v: Int) = p(ctx).edit().putInt("ir", v).apply()
+
     fun touchMode(ctx: Context) = p(ctx).getBoolean("touch", false)
     fun setTouchMode(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("touch", v).apply()
 }
