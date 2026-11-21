@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.hossa.mando"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.hossa.mando"
